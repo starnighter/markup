@@ -241,7 +241,13 @@ export const useStore = create<AppState>((set, get) => ({
 
   setMode: (mode) => {
     storage.set(LS_MODE, mode);
-    set({ mode });
+    set((state) => {
+      if (state.mode === mode) return { mode };
+      // 两种模式的右栏含义不同：源码为实时预览，IR 为文档大纲。
+      // 切换时不应把上一模式的“打开”状态带到下一模式。
+      storage.set(LS_RIGHT_PANEL, "0");
+      return { mode, rightPanelVisible: false };
+    });
   },
 
   toggleTheme: () =>

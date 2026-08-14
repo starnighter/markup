@@ -96,14 +96,19 @@ describe("store", () => {
     expect(useStore.getState().content).toBe("# B");
   });
 
-  it("右侧栏开关跨编辑模式保持通用", () => {
+  it("切换编辑模式时自动收起不同用途的右侧栏", () => {
     useStore.getState().setMode("sv");
-    useStore.getState().toggleRightPanel();
     expect(useStore.getState().rightPanelVisible).toBe(false);
+
+    useStore.getState().toggleRightPanel();
+    expect(useStore.getState().rightPanelVisible).toBe(true);
 
     useStore.getState().setMode("ir");
     expect(useStore.getState().rightPanelVisible).toBe(false);
+
     useStore.getState().toggleRightPanel();
+    expect(useStore.getState().rightPanelVisible).toBe(true);
+    useStore.getState().setMode("ir");
     expect(useStore.getState().rightPanelVisible).toBe(true);
   });
 });
