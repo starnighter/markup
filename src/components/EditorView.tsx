@@ -183,15 +183,18 @@ export default function EditorView() {
         handler: handleUpload,
       },
       input: (value: string) => {
+        if (useStore.getState().currentFile !== currentFile) return;
         useStore.getState().setContent(value);
         scheduleSave();
       },
       after: () => {
-        vditorRef.current?.setValue(initial);
-        if (initial) vditorRef.current?.focus();
+        if (disposed || useStore.getState().currentFile !== currentFile) return;
+        vd?.setValue(initial);
+        if (initial) vd?.focus();
         applySvLayout();
       },
       blur: () => {
+        if (useStore.getState().currentFile !== currentFile) return;
         window.clearTimeout(saveTimer.current);
         useStore.getState().saveNow();
       },
@@ -218,7 +221,9 @@ export default function EditorView() {
       if (vd) {
         try {
           const v = vd.getValue();
-          if (v !== useStore.getState().content) useStore.getState().setContent(v);
+          const store = useStore.getState();
+          // 文件切换时 store 已载入新正文，不能再用旧实例的内容覆盖它。
+          if (store.currentFile === currentFile && v !== store.content) store.setContent(v);
           vd.destroy();
         } catch {
           /* 编辑器未初始化完成时 destroy 可能抛错 */

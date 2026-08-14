@@ -13,6 +13,8 @@ interface AppState {
   tree: DirEntry | null;
   expanded: Record<string, boolean>;
   currentFile: string | null;
+  navigationHistory: string[];
+  navigationIndex: number;
   /** 编辑器当前内容（保存的唯一事实来源） */
   content: string;
   savedContent: string;
@@ -36,14 +38,16 @@ interface AppState {
 
   showToast: (msg: string) => void;
   openWorkspace: (path: string) => Promise<void>;
-  closeWorkspace: () => void;
+  closeWorkspace: () => Promise<void>;
   forgetRecentWorkspace: (path: string) => void;
   refreshTree: () => Promise<void>;
   toggleExpanded: (path: string) => void;
-  openFile: (path: string) => Promise<void>;
+  openFile: (path: string, recordHistory?: boolean) => Promise<boolean>;
+  navigateBack: () => Promise<void>;
+  navigateForward: () => Promise<void>;
   closeFile: () => void;
   setContent: (c: string) => void;
-  saveNow: () => Promise<void>;
+  saveNow: () => Promise<boolean>;
   setMode: (m: EditorMode) => void;
   toggleTheme: () => void;
   toggleSidebar: () => void;
@@ -123,6 +127,17 @@ function isSameOrChildPath(candidate: string, root: string): boolean {
   return normalizedCandidate === normalizedRoot || normalizedCandidate.startsWith(normalizedRoot + "/");
 }
 
+function replacePathRoot(candidate: string, oldRoot: string, newRoot: string): string {
+  if (!isSameOrChildPath(candidate, oldRoot)) return candidate;
+  return newRoot + candidate.slice(oldRoot.length);
+}
+
+function appendNavigation(history: string[], index: number, path: string) {
+  if (history[index] === path) return { navigationHistory: history, navigationIndex: index };
+  const navigationHistory = [...history.slice(0, index + 1), path].slice(-50);
+  return { navigationHistory, navigationIndex: navigationHistory.length - 1 };
+}
+
 /** 安全 localStorage：Node 测试环境/隐私模式下静默降级 */
 const storage = {
   get(k: string): string | null {
@@ -148,6 +163,8 @@ const storage = {
 };
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
+let saveInFlight: Promise<boolean> | null = null;
+let openRequestId = 0;
 
 export const useStore = create<AppState>((set, get) => ({
   workspace: null,
@@ -157,6 +174,8 @@ export const useStore = create<AppState>((set, get) => ({
   tree: null,
   expanded: {},
   currentFile: null,
+  navigationHistory: [],
+  navigationIndex: -1,
   content: "",
   savedContent: "",
   dirty: false,
@@ -180,8 +199,11 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   openWorkspace: async (path) => {
+    if (get().workspace && !(await get().saveNow())) return;
+    const requestId = ++openRequestId;
     try {
       const tree = await fsApi.readDirTree(path);
+      if (requestId !== openRequestId) return;
       const recentWorkspaces = [path, ...get().recentWorkspaces.filter((item) => item !== path)].slice(0, 6);
       const rememberedFile = get().lastOpenedFiles[path];
       const canRestore = !!rememberedFile && treeContainsFile(tree, rememberedFile);
@@ -201,6 +223,8 @@ export const useStore = create<AppState>((set, get) => ({
         tree,
         expanded: { [path]: true },
         currentFile: null,
+        navigationHistory: [],
+        navigationIndex: -1,
         content: "",
         savedContent: "",
         dirty: false,
@@ -208,12 +232,16 @@ export const useStore = create<AppState>((set, get) => ({
       });
       if (canRestore) await get().openFile(rememberedFile);
     } catch (e) {
-      get().showToast((e as Error).message);
-      storage.remove(LS_WORKSPACE);
+      if (requestId === openRequestId) {
+        get().showToast((e as Error).message);
+        storage.remove(LS_WORKSPACE);
+      }
     }
   },
 
-  closeWorkspace: () => {
+  closeWorkspace: async () => {
+    if (!(await get().saveNow())) return;
+    openRequestId++;
     storage.remove(LS_WORKSPACE);
     set({
       workspace: null,
@@ -221,6 +249,8 @@ export const useStore = create<AppState>((set, get) => ({
       tree: null,
       expanded: {},
       currentFile: null,
+      navigationHistory: [],
+      navigationIndex: -1,
       content: "",
       savedContent: "",
       dirty: false,
@@ -252,24 +282,30 @@ export const useStore = create<AppState>((set, get) => ({
   toggleExpanded: (path) =>
     set((s) => ({ expanded: { ...s.expanded, [path]: !s.expanded[path] } })),
 
-  openFile: async (path) => {
+  openFile: async (path, recordHistory = true) => {
     const s = get();
     if (s.currentFile === path) {
       if (isMobile) set({ sidebarOpen: false });
-      return;
+      return true;
     }
-    await s.saveNow(); // 先落盘当前文件
+    const requestId = ++openRequestId;
+    if (!(await s.saveNow()) || requestId !== openRequestId) return false;
     try {
       const content = await fsApi.readTextFile(path);
+      if (requestId !== openRequestId) return false;
       const workspace = get().workspace;
       const tree = get().tree;
       const lastOpenedFiles = workspace
         ? { ...get().lastOpenedFiles, [workspace]: path }
         : get().lastOpenedFiles;
+      const navigation = recordHistory
+        ? appendNavigation(get().navigationHistory, get().navigationIndex, path)
+        : {};
       if (workspace) storage.set(LS_LAST_OPENED_FILES, JSON.stringify(lastOpenedFiles));
       set({
         currentFile: path,
         lastOpenedFiles,
+        ...navigation,
         expanded: tree ? expandToFile(tree, path, get().expanded) : get().expanded,
         content,
         savedContent: content,
@@ -277,12 +313,31 @@ export const useStore = create<AppState>((set, get) => ({
         saveError: false,
         sidebarOpen: isMobile ? false : s.sidebarOpen,
       });
+      return true;
     } catch (e) {
-      s.showToast((e as Error).message);
+      if (requestId === openRequestId) s.showToast((e as Error).message);
+      return false;
     }
   },
 
+  navigateBack: async () => {
+    const { navigationHistory, navigationIndex } = get();
+    const targetIndex = navigationIndex - 1;
+    const target = navigationHistory[targetIndex];
+    if (!target) return;
+    if (await get().openFile(target, false)) set({ navigationIndex: targetIndex });
+  },
+
+  navigateForward: async () => {
+    const { navigationHistory, navigationIndex } = get();
+    const targetIndex = navigationIndex + 1;
+    const target = navigationHistory[targetIndex];
+    if (!target) return;
+    if (await get().openFile(target, false)) set({ navigationIndex: targetIndex });
+  },
+
   closeFile: () => {
+    openRequestId++;
     set({ currentFile: null, content: "", savedContent: "", dirty: false });
   },
 
@@ -290,15 +345,38 @@ export const useStore = create<AppState>((set, get) => ({
     set((s) => ({ content, dirty: content !== s.savedContent })),
 
   saveNow: async () => {
-    const s = get();
-    if (!s.currentFile || !s.dirty || s.saving) return;
-    set({ saving: true, saveError: false });
+    if (saveInFlight) return saveInFlight;
+    saveInFlight = (async () => {
+      while (true) {
+        const snapshot = get();
+        if (!snapshot.currentFile || !snapshot.dirty) {
+          set({ saving: false });
+          return true;
+        }
+        const file = snapshot.currentFile;
+        const content = snapshot.content;
+        set({ saving: true, saveError: false });
+        try {
+          await fsApi.writeTextFile(file, content);
+        } catch (e) {
+          set({ saving: false, saveError: true });
+          snapshot.showToast("保存失败：" + (e as Error).message);
+          return false;
+        }
+        const latest = get();
+        if (latest.currentFile !== file) {
+          set({ saving: false });
+          return true;
+        }
+        const dirty = latest.content !== content;
+        set({ savedContent: content, dirty, saving: dirty });
+        if (!dirty) return true;
+      }
+    })();
     try {
-      await fsApi.writeTextFile(s.currentFile, s.content);
-      set({ saving: false, dirty: false, savedContent: get().content });
-    } catch (e) {
-      set({ saving: false, saveError: true });
-      s.showToast("保存失败：" + (e as Error).message);
+      return await saveInFlight;
+    } finally {
+      saveInFlight = null;
     }
   },
 
@@ -368,15 +446,21 @@ export const useStore = create<AppState>((set, get) => ({
     const newPath = joinPath(parent, finalName);
     if (newPath === oldPath) return;
     try {
+      if (get().currentFile && isSameOrChildPath(get().currentFile!, oldPath) && !(await s.saveNow())) return;
       await fsApi.renameEntry(oldPath, newPath);
-      // 若重命名的是当前打开的文件，同步路径
-      if (get().currentFile === oldPath) {
+      const currentFile = get().currentFile
+        ? replacePathRoot(get().currentFile!, oldPath, newPath)
+        : null;
+      const navigationHistory = get().navigationHistory.map((path) => replacePathRoot(path, oldPath, newPath));
+      if (currentFile !== get().currentFile) {
         const workspace = get().workspace;
         const lastOpenedFiles = workspace
-          ? { ...get().lastOpenedFiles, [workspace]: newPath }
+          ? { ...get().lastOpenedFiles, [workspace]: currentFile! }
           : get().lastOpenedFiles;
         if (workspace) storage.set(LS_LAST_OPENED_FILES, JSON.stringify(lastOpenedFiles));
-        set({ currentFile: newPath, lastOpenedFiles });
+        set({ currentFile, lastOpenedFiles, navigationHistory });
+      } else {
+        set({ navigationHistory });
       }
       await s.refreshTree();
     } catch (e) {
@@ -397,7 +481,13 @@ export const useStore = create<AppState>((set, get) => ({
         storage.set(LS_LAST_OPENED_FILES, JSON.stringify(lastOpenedFiles));
         set({ lastOpenedFiles });
       }
-      if (get().currentFile === path || get().currentFile?.startsWith(path + "/")) {
+      const navigationHistory = get().navigationHistory.filter((item) => !isSameOrChildPath(item, path));
+      const activeIndex = get().currentFile ? navigationHistory.lastIndexOf(get().currentFile!) : -1;
+      const navigationIndex = activeIndex >= 0
+        ? activeIndex
+        : Math.min(get().navigationIndex, navigationHistory.length - 1);
+      set({ navigationHistory, navigationIndex });
+      if (get().currentFile && isSameOrChildPath(get().currentFile!, path)) {
         get().closeFile();
       }
       await s.refreshTree();

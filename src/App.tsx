@@ -22,13 +22,16 @@ export default function App() {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
 
-  // 全局保存快捷键 Cmd/Ctrl + S
+  // 全局保存与文档导航快捷键
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
-        e.preventDefault();
-        useStore.getState().saveNow();
-      }
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const key = e.key.toLowerCase();
+      if (key === "s") useStore.getState().saveNow();
+      else if (key === "[") useStore.getState().navigateBack();
+      else if (key === "]") useStore.getState().navigateForward();
+      else return;
+      e.preventDefault();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
