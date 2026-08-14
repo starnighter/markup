@@ -1,0 +1,41 @@
+README.md
+  s_44821f9bb6db7b::t_6572c52ef0514e 5
+src-tauri/Cargo.lock
+  s_44821f9bb6db7b::t_2a33981d749f17 312-328,410-418,1064,1067,1089,1092-1093,1349-1364,1824-1829,1834,2457-2512,2534-2559,2635-2672,2731-2744,2773-2807,2814-2819,3010-3021,3093,3221-3226,3391,3763-3772,4063-4068,4256-4265,4322-4330,4561-4569,4956-4961
+src-tauri/Cargo.toml
+  s_44821f9bb6db7b::t_78da80dd4af281 20
+src-tauri/src/ai_cmds.rs
+  s_44821f9bb6db7b::t_61ad5318acf125 1-298
+src-tauri/src/lib.rs
+  s_44821f9bb6db7b::t_dd316a93d1e411 2,5,20
+src/components/AIAssistant.tsx
+  s_44821f9bb6db7b::t_522780e6abbb3e 1-385
+src/components/EditorView.tsx
+  s_44821f9bb6db7b::t_61201c771cfa60 10,270
+src/components/TopBar.tsx
+  s_44821f9bb6db7b::t_6a407c4110562e 33-43
+src/lib/ai.test.ts
+  s_44821f9bb6db7b::t_563b9143a78be5 1-52
+src/lib/ai.ts
+  s_44821f9bb6db7b::t_82fb29adbe1e4e 1-163
+src/styles.css
+  s_44821f9bb6db7b::t_12a879d10a69f6 64,311-442,456-460
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "eca48cb078d7eff822e4280173e8048820987153",
+  "prompts": {},
+  "sessions": {
+    "s_44821f9bb6db7b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ffe3b-0a51-7200-8445-1871b4eb505c",
+        "model": "unknown"
+      },
+      "human_author": "starnighter <175115251+starnighter@users.noreply.github.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
