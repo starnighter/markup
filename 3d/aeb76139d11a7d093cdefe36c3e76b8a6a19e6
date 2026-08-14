@@ -1,0 +1,41 @@
+.gitignore
+  s_44821f9bb6db7b::t_fb6b84be88923e 1-8
+LICENSE
+  s_44821f9bb6db7b::t_96e44998024176 1-21
+README.md
+  s_44821f9bb6db7b::t_b8bb05c39f24d0 1-33
+src/components/DocumentOutline.tsx
+  s_44821f9bb6db7b::t_13dfba7db59077 1-49
+src/components/EditorView.tsx
+  s_44821f9bb6db7b::t_73f418a0bf09aa 1-283
+src/components/TopBar.tsx
+  s_44821f9bb6db7b::t_3a5a661ed7f015 1-70
+src/lib/headings.test.ts
+  s_44821f9bb6db7b::t_4bcca593c0ce8a 1-23
+src/lib/headings.ts
+  s_44821f9bb6db7b::t_afe260b80f2aeb 1-59
+src/store.test.ts
+  s_44821f9bb6db7b::t_f722a48f224e62 1-97
+src/store.ts
+  s_44821f9bb6db7b::t_189a70c2bd18f4 1-304
+src/styles.css
+  s_44821f9bb6db7b::t_c1571f558f9277 1-323
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3daeb76139d11a7d093cdefe36c3e76b8a6a19e6",
+  "prompts": {},
+  "sessions": {
+    "s_44821f9bb6db7b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ffe3b-0a51-7200-8445-1871b4eb505c",
+        "model": "unknown"
+      },
+      "human_author": "starnighter <175115251+starnighter@users.noreply.github.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
