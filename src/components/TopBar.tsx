@@ -18,6 +18,7 @@ export default function TopBar() {
     navigationIndex,
     navigateBack,
     navigateForward,
+    toggleFocusMode,
   } = useStore();
 
   const fileName = currentFile?.replace(/^[\\/]+/, "").split(/[\\/]/).pop() ?? "";
@@ -72,6 +73,17 @@ export default function TopBar() {
         </span>
       </div>
       <div className="topbar-right">
+        {currentFile && (
+          <button
+            className="icon-btn focus-open-btn"
+            title={`专注模式 (${primaryModifier}⇧Enter)`}
+            aria-label="进入专注模式"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={toggleFocusMode}
+          >
+            ⛶
+          </button>
+        )}
         {currentFile && (
           <button
             className="icon-btn ai-open-btn"

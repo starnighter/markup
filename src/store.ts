@@ -24,6 +24,7 @@ interface AppState {
   mode: EditorMode;
   theme: Theme;
   sidebarOpen: boolean;
+  focusMode: boolean;
   /** 侧栏宽度（px），可拖拽调整 */
   sidebarWidth: number;
   /** 源码模式下预览窗格宽度占比 0~1 */
@@ -51,6 +52,7 @@ interface AppState {
   setMode: (m: EditorMode) => void;
   toggleTheme: () => void;
   toggleSidebar: () => void;
+  toggleFocusMode: () => void;
   setSidebarWidth: (w: number) => void;
   setSvRatio: (r: number) => void;
   toggleRightPanel: () => void;
@@ -184,6 +186,7 @@ export const useStore = create<AppState>((set, get) => ({
   mode: (storage.get(LS_MODE) as EditorMode) || (isMobile ? "sv" : "ir"),
   theme: (storage.get(LS_THEME) as Theme) || "light",
   sidebarOpen: !isMobile,
+  focusMode: false,
   sidebarWidth: clamp(Number(storage.get(LS_SIDEBAR_W)) || 264, SIDEBAR_MIN, SIDEBAR_MAX),
   svRatio: clamp(Number(storage.get(LS_SV_RATIO)) || 0.5, SV_MIN, SV_MAX),
   // 兼容旧版本的源码预览开关偏好。
@@ -229,6 +232,7 @@ export const useStore = create<AppState>((set, get) => ({
         savedContent: "",
         dirty: false,
         sidebarOpen: !isMobile,
+        focusMode: false,
       });
       if (canRestore) await get().openFile(rememberedFile);
     } catch (e) {
@@ -254,6 +258,7 @@ export const useStore = create<AppState>((set, get) => ({
       content: "",
       savedContent: "",
       dirty: false,
+      focusMode: false,
     });
   },
 
@@ -338,7 +343,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   closeFile: () => {
     openRequestId++;
-    set({ currentFile: null, content: "", savedContent: "", dirty: false });
+    set({ currentFile: null, content: "", savedContent: "", dirty: false, focusMode: false });
   },
 
   setContent: (content) =>
@@ -399,6 +404,8 @@ export const useStore = create<AppState>((set, get) => ({
     }),
 
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
+
+  toggleFocusMode: () => set((s) => ({ focusMode: !s.focusMode })),
 
   setSidebarWidth: (w) => {
     const sidebarWidth = clamp(Math.round(w), SIDEBAR_MIN, SIDEBAR_MAX);

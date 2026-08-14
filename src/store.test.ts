@@ -65,6 +65,7 @@ describe("store", () => {
       dirty: false,
       saving: false,
       mode: "ir",
+      focusMode: false,
       rightPanelVisible: true,
     });
   });
@@ -214,5 +215,15 @@ describe("store", () => {
     expect(useStore.getState().rightPanelVisible).toBe(true);
     useStore.getState().setMode("ir");
     expect(useStore.getState().rightPanelVisible).toBe(true);
+  });
+
+  it("专注模式可切换并在关闭文件时自动退出", async () => {
+    await useStore.getState().openWorkspace("/ws");
+    await useStore.getState().openFile("/ws/a.md");
+    useStore.getState().toggleFocusMode();
+    expect(useStore.getState().focusMode).toBe(true);
+
+    useStore.getState().closeFile();
+    expect(useStore.getState().focusMode).toBe(false);
   });
 });

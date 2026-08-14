@@ -88,6 +88,7 @@ kbd {
 .icon-btn:hover { background: var(--bg-hover); }
 .icon-btn:active { transform: scale(.95); }
 .ai-open-btn { color: var(--accent); }
+.focus-open-btn { color: var(--text-dim); }
 .history-nav { display: flex; align-items: center; gap: 1px; margin-right: 1px; }
 .history-nav button {
   width: 25px; height: 27px; display: grid; place-items: center;
@@ -100,6 +101,39 @@ kbd {
 }
 .mode-switch button { padding: 4px 12px; font-size: 13px; color: var(--text-dim); }
 .mode-switch button.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+/* ---------- 专注写作模式 ---------- */
+.app.focus-mode .topbar,
+.app.focus-mode .statusbar { display: none; }
+.app.focus-mode .main { background: var(--bg); }
+.app.focus-mode .document-outline,
+.app.focus-mode .sv-handle,
+.app.focus-mode .editor-host .vditor-preview { display: none !important; }
+.app.focus-mode .editor-host .vditor-sv {
+  flex: 1 1 100% !important;
+  max-width: 100% !important;
+}
+.focus-hud {
+  position: fixed; right: 16px; bottom: 16px; z-index: 190;
+  max-width: min(420px, calc(100vw - 32px)); padding: 5px 5px 5px 11px;
+  display: flex; align-items: center; gap: 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 11px; background: color-mix(in srgb, var(--bg) 90%, transparent);
+  color: var(--text-dim); box-shadow: 0 8px 30px rgba(9, 10, 25, .12);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  opacity: .52; transition: opacity .16s ease, transform .16s ease;
+}
+.focus-hud:hover, .focus-hud:focus-within { opacity: 1; transform: translateY(-1px); }
+.focus-hud > span {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 10px; font-weight: 650;
+}
+.focus-hud button {
+  min-height: 27px; flex: none; padding: 4px 7px;
+  border-radius: 7px; color: var(--text-dim); font-size: 10px;
+}
+.focus-hud button:hover { background: var(--bg-hover); color: var(--text); }
+.focus-hud kbd { margin-left: 4px; background: var(--bg-soft); font-size: 8px; }
 
 /* ---------- 主区域 ---------- */
 .main { display: flex; flex: 1; min-height: 0; position: relative; }
@@ -631,6 +665,8 @@ kbd {
     box-shadow: var(--shadow);
   }
   .mode-switch button { padding: 4px 8px; font-size: 12px; }
+  .focus-open-btn { display: none; }
+  .focus-hud > span { display: none; }
   .status-path { display: none; }
   .document-outline {
     position: absolute; top: 0; right: 0; bottom: 0; z-index: 25;
