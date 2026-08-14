@@ -5,6 +5,7 @@ import EditorView from "./components/EditorView";
 import TopBar from "./components/TopBar";
 import StatusBar from "./components/StatusBar";
 import Welcome from "./components/Welcome";
+import WorkspaceEmpty from "./components/WorkspaceEmpty";
 import { isMobile } from "./lib/platform";
 
 export default function App() {
@@ -49,9 +50,7 @@ export default function App() {
           ) : currentFile ? (
             <EditorView />
           ) : (
-            <div className="no-file">
-              <p>从左侧选择或新建一个 Markdown 文件</p>
-            </div>
+            <WorkspaceEmpty />
           )}
         </div>
       </div>

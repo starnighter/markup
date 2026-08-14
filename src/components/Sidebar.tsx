@@ -1,10 +1,12 @@
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import FileTree from "./FileTree";
 import ResizeHandle from "./ResizeHandle";
 import { useStore } from "../store";
-import { isMobile } from "../lib/platform";
+import { isMobile, primaryModifier } from "../lib/platform";
 
 export default function Sidebar() {
+  const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
   const {
     workspace,
     workspaceName,
@@ -16,6 +18,19 @@ export default function Sidebar() {
     closeWorkspace,
   } = useStore();
   const asideRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const focusSearch = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "p") {
+        event.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      }
+    };
+    window.addEventListener("keydown", focusSearch);
+    return () => window.removeEventListener("keydown", focusSearch);
+  }, []);
+
   if (!workspace) return null;
 
   return (
@@ -25,24 +40,34 @@ export default function Sidebar() {
       style={isMobile ? undefined : { width: sidebarWidth }}
     >
       <div className="sidebar-header">
-        <span className="workspace-name" title={workspace}>
-          {workspaceName}
-        </span>
-        <button className="icon-btn" title="收起侧栏" onClick={toggleSidebar}>
-          «
-        </button>
-        <button className="icon-btn" title="关闭工作区" onClick={closeWorkspace}>
-          ⏏
-        </button>
+        <span className="sidebar-workspace-mark" aria-hidden="true">M</span>
+        <span className="workspace-name" title={workspace}>{workspaceName}</span>
+        <div className="sidebar-header-actions">
+          <button className="icon-btn" title="收起侧栏" aria-label="收起侧栏" onClick={toggleSidebar}>‹</button>
+          <button className="icon-btn" title="关闭工作区" aria-label="关闭工作区" onClick={closeWorkspace}>×</button>
+        </div>
       </div>
+      <label className="sidebar-search">
+        <span aria-hidden="true">⌕</span>
+        <input
+          ref={searchRef}
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="搜索文档"
+          aria-label="搜索文档"
+        />
+        {query ? (
+          <button type="button" aria-label="清除搜索" title="清除搜索" onClick={() => setQuery("")}>×</button>
+        ) : (
+          <kbd>{primaryModifier} P</kbd>
+        )}
+      </label>
       <div className="sidebar-actions">
-        <button onClick={() => setCreating({ parent: workspace, isDir: false })}>＋ 文件</button>
-        <button onClick={() => setCreating({ parent: workspace, isDir: true })}>＋ 文件夹</button>
-        <button onClick={refreshTree} title="刷新">
-          ⟳
-        </button>
+        <button onClick={() => setCreating({ parent: workspace, isDir: false })}>＋ 新建文档</button>
+        <button className="sidebar-action-icon" aria-label="新建文件夹" onClick={() => setCreating({ parent: workspace, isDir: true })}>□<sup>＋</sup></button>
+        <button className="sidebar-action-icon" onClick={refreshTree} title="刷新" aria-label="刷新">↻</button>
       </div>
-      <FileTree />
+      <FileTree query={query} />
       {!isMobile && (
         <ResizeHandle
           onDrag={(x) => {

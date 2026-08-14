@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../store";
 import { DirEntry, isMarkdown } from "../lib/fs";
+import { filterDirEntry } from "../lib/fileSearch";
 
 /** 内联输入框：用于新建与重命名。输入为空时（Enter 或点击别处）自动取消 */
 function InlineInput({
@@ -77,11 +78,13 @@ function TreeNode({
   depth,
   onMenu,
   onConfirmDelete,
+  searching,
 }: {
   entry: DirEntry;
   depth: number;
   onMenu: (m: MenuState) => void;
   onConfirmDelete: (e: DirEntry) => void;
+  searching: boolean;
 }) {
   const {
     expanded,
@@ -94,7 +97,7 @@ function TreeNode({
     setCreating,
   } = useStore();
 
-  const isOpen = !!expanded[entry.path];
+  const isOpen = searching || !!expanded[entry.path];
   const isActive = currentFile === entry.path;
   const editable = entry.is_dir || isMarkdown(entry.name);
 
@@ -115,7 +118,7 @@ function TreeNode({
         />
         {entry.is_dir && isOpen &&
           entry.children.map((c) => (
-            <TreeNode key={c.path} entry={c} depth={depth + 1} onMenu={onMenu} onConfirmDelete={onConfirmDelete} />
+            <TreeNode key={c.path} entry={c} depth={depth + 1} onMenu={onMenu} onConfirmDelete={onConfirmDelete} searching={searching} />
           ))}
       </>
     );
@@ -173,7 +176,7 @@ function TreeNode({
       </div>
       {entry.is_dir && isOpen &&
         entry.children.map((c) => (
-          <TreeNode key={c.path} entry={c} depth={depth + 1} onMenu={onMenu} onConfirmDelete={onConfirmDelete} />
+          <TreeNode key={c.path} entry={c} depth={depth + 1} onMenu={onMenu} onConfirmDelete={onConfirmDelete} searching={searching} />
         ))}
     </>
   );
@@ -280,7 +283,7 @@ function ContextMenu({
   );
 }
 
-export default function FileTree() {
+export default function FileTree({ query = "" }: { query?: string }) {
   const { tree, workspace } = useStore();
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [confirming, setConfirming] = useState<DirEntry | null>(null);
@@ -288,6 +291,10 @@ export default function FileTree() {
   // 新建时确保父目录展开（hook 必须在 early return 之前）
   useEffectAutoExpand(useStore((s) => s.creating?.parent));
   if (!tree || !workspace) return null;
+  const searching = !!query.trim();
+  const children = tree.children
+    .map((entry) => filterDirEntry(entry, query))
+    .filter((entry): entry is DirEntry => entry !== null);
 
   return (
     <div
@@ -297,10 +304,16 @@ export default function FileTree() {
         setMenu({ x: e.clientX, y: e.clientY, entry: null });
       }}
     >
-      <CreatingRow parent={tree.path} depth={0} />
-      {tree.children.map((c) => (
-        <TreeNode key={c.path} entry={c} depth={0} onMenu={setMenu} onConfirmDelete={setConfirming} />
+      {!searching && <CreatingRow parent={tree.path} depth={0} />}
+      {children.map((c) => (
+        <TreeNode key={c.path} entry={c} depth={0} onMenu={setMenu} onConfirmDelete={setConfirming} searching={searching} />
       ))}
+      {searching && children.length === 0 && (
+        <div className="file-tree-empty">
+          <span>⌕</span>
+          <p>没有找到“{query.trim()}”</p>
+        </div>
+      )}
       {menu && (
         <ContextMenu
           menu={menu}

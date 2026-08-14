@@ -10,6 +10,7 @@ export default function TopBar() {
     toggleTheme,
     toggleSidebar,
     workspace,
+    workspaceName,
     rightPanelVisible,
     toggleRightPanel,
   } = useStore();
@@ -24,8 +25,9 @@ export default function TopBar() {
             ☰
           </button>
         )}
-        <span className="file-title">
-          {fileName}
+        {!workspace && <span className="topbar-brand"><b>M</b> MarkUp</span>}
+        <span className={`file-title ${!currentFile ? "workspace-title" : ""}`}>
+          {fileName || (workspace ? workspaceName : "")}
           {dirty && <span className="dirty-dot" title="未保存">●</span>}
         </span>
       </div>

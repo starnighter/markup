@@ -32,6 +32,8 @@ describe("store", () => {
     files.clear();
     useStore.setState({
       workspace: null,
+      workspaceName: "",
+      recentWorkspaces: [],
       tree: null,
       currentFile: null,
       content: "",
@@ -49,6 +51,16 @@ describe("store", () => {
     expect(s.workspaceName).toBe("ws");
     expect(s.tree?.children[0].name).toBe("a.md");
     expect(s.expanded["/ws"]).toBe(true);
+  });
+
+  it("记录、去重并移除最近工作区", async () => {
+    await useStore.getState().openWorkspace("/ws");
+    await useStore.getState().openWorkspace("/another");
+    await useStore.getState().openWorkspace("/ws");
+    expect(useStore.getState().recentWorkspaces).toEqual(["/ws", "/another"]);
+
+    useStore.getState().forgetRecentWorkspace("/another");
+    expect(useStore.getState().recentWorkspaces).toEqual(["/ws"]);
   });
 
   it("打开文件 → 编辑 → 脏标记 → 保存落盘", async () => {

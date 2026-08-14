@@ -8,6 +8,7 @@ export type Theme = "light" | "dark";
 interface AppState {
   workspace: string | null;
   workspaceName: string;
+  recentWorkspaces: string[];
   tree: DirEntry | null;
   expanded: Record<string, boolean>;
   currentFile: string | null;
@@ -35,6 +36,7 @@ interface AppState {
   showToast: (msg: string) => void;
   openWorkspace: (path: string) => Promise<void>;
   closeWorkspace: () => void;
+  forgetRecentWorkspace: (path: string) => void;
   refreshTree: () => Promise<void>;
   toggleExpanded: (path: string) => void;
   openFile: (path: string) => Promise<void>;
@@ -56,6 +58,7 @@ interface AppState {
 }
 
 const LS_WORKSPACE = "markup.workspace";
+const LS_RECENT_WORKSPACES = "markup.recentWorkspaces";
 const LS_THEME = "markup.theme";
 const LS_MODE = "markup.mode";
 const LS_SIDEBAR_W = "markup.sidebarWidth";
@@ -69,6 +72,16 @@ const SV_MIN = 0.15;
 const SV_MAX = 0.85;
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+function readRecentWorkspaces(): string[] {
+  try {
+    const value = JSON.parse(storage.get(LS_RECENT_WORKSPACES) ?? "[]");
+    if (!Array.isArray(value)) return [];
+    return value.filter((path): path is string => typeof path === "string" && !!path.trim()).slice(0, 6);
+  } catch {
+    return [];
+  }
+}
 
 /** 安全 localStorage：Node 测试环境/隐私模式下静默降级 */
 const storage = {
@@ -99,6 +112,7 @@ let toastTimer: ReturnType<typeof setTimeout> | undefined;
 export const useStore = create<AppState>((set, get) => ({
   workspace: null,
   workspaceName: "",
+  recentWorkspaces: readRecentWorkspaces(),
   tree: null,
   expanded: {},
   currentFile: null,
@@ -127,10 +141,13 @@ export const useStore = create<AppState>((set, get) => ({
   openWorkspace: async (path) => {
     try {
       const tree = await fsApi.readDirTree(path);
+      const recentWorkspaces = [path, ...get().recentWorkspaces.filter((item) => item !== path)].slice(0, 6);
       storage.set(LS_WORKSPACE, path);
+      storage.set(LS_RECENT_WORKSPACES, JSON.stringify(recentWorkspaces));
       set({
         workspace: path,
         workspaceName: tree.name,
+        recentWorkspaces,
         tree,
         expanded: { [path]: true },
         currentFile: null,
@@ -158,6 +175,13 @@ export const useStore = create<AppState>((set, get) => ({
       dirty: false,
     });
   },
+
+  forgetRecentWorkspace: (path) =>
+    set((state) => {
+      const recentWorkspaces = state.recentWorkspaces.filter((item) => item !== path);
+      storage.set(LS_RECENT_WORKSPACES, JSON.stringify(recentWorkspaces));
+      return { recentWorkspaces };
+    }),
 
   refreshTree: async () => {
     const { workspace, showToast } = get();
