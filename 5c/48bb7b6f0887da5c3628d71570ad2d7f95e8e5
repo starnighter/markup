@@ -1,0 +1,23 @@
+src/store.test.ts
+  s_9212d3017e1c0f::t_91e3e848b0c9a4 99,103-105,108,111-112
+src/store.ts
+  s_9212d3017e1c0f::t_667faddfc84069 244-250
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5c48bb7b6f0887da5c3628d71570ad2d7f95e8e5",
+  "prompts": {},
+  "sessions": {
+    "s_9212d3017e1c0f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ffeec-39b8-7e22-8492-ec9175e42350",
+        "model": "unknown"
+      },
+      "human_author": "starnighter <175115251+starnighter@users.noreply.github.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
