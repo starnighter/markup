@@ -1,0 +1,33 @@
+README.md
+  s_9212d3017e1c0f::t_a8980b93b10d47 5
+src/App.tsx
+  s_9212d3017e1c0f::t_dc06ce10c5d7f0 9,62
+src/components/QuickOpen.tsx
+  s_9212d3017e1c0f::t_eeccae61066394 1-148
+src/components/Sidebar.tsx
+  s_9212d3017e1c0f::t_b1597a3c7839c9 1,48-59
+src/lib/quickOpen.test.ts
+  s_9212d3017e1c0f::t_e78599f43a089e 1-50
+src/lib/quickOpen.ts
+  s_9212d3017e1c0f::t_4e4cba994fce7e 1-84
+src/styles.css
+  s_9212d3017e1c0f::t_d3b83418057347 140-142,422-493,640-643
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a92d9ec8ad2300e84076b642d28a99d14c82d3f4",
+  "prompts": {},
+  "sessions": {
+    "s_9212d3017e1c0f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ffeec-39b8-7e22-8492-ec9175e42350",
+        "model": "unknown"
+      },
+      "human_author": "starnighter <175115251+starnighter@users.noreply.github.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
