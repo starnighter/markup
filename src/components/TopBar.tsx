@@ -16,6 +16,14 @@ export default function TopBar() {
   } = useStore();
 
   const fileName = currentFile?.replace(/^[\\/]+/, "").split(/[\\/]/).pop() ?? "";
+  const normalizedWorkspace = workspace?.replace(/\\/g, "/").replace(/\/+$/, "") ?? "";
+  const normalizedFile = currentFile?.replace(/\\/g, "/") ?? "";
+  const relativePath = normalizedWorkspace && normalizedFile.startsWith(normalizedWorkspace + "/")
+    ? normalizedFile.slice(normalizedWorkspace.length + 1)
+    : fileName;
+  const parentLabel = relativePath.includes("/")
+    ? relativePath.slice(0, relativePath.lastIndexOf("/"))
+    : "";
 
   return (
     <header className="topbar">
@@ -26,8 +34,13 @@ export default function TopBar() {
           </button>
         )}
         {!workspace && <span className="topbar-brand"><b>M</b> MarkUp</span>}
-        <span className={`file-title ${!currentFile ? "workspace-title" : ""}`}>
-          {fileName || (workspace ? workspaceName : "")}
+        <span className={`file-title ${!currentFile ? "workspace-title" : ""}`} title={currentFile ?? workspace ?? ""}>
+          {currentFile ? (
+            <>
+              {parentLabel && <span className="file-parent">{parentLabel}<i>›</i></span>}
+              <span className="file-name">{fileName}</span>
+            </>
+          ) : (workspace ? workspaceName : "")}
           {dirty && <span className="dirty-dot" title="未保存">●</span>}
         </span>
       </div>

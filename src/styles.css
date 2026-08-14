@@ -75,7 +75,10 @@ kbd {
   border-radius: 7px; background: linear-gradient(145deg, #7266ee, #5745d9); color: #fff; font-size: 12px;
   box-shadow: 0 5px 12px rgba(85, 70, 215, .22);
 }
-.file-title { font-weight: 650; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.file-title { min-width: 0; display: flex; align-items: center; font-weight: 650; font-size: 13px; white-space: nowrap; overflow: hidden; }
+.file-parent { max-width: 240px; display: inline-flex; align-items: center; overflow: hidden; color: var(--text-dim); font-weight: 500; text-overflow: ellipsis; }
+.file-parent i { margin: 0 7px; color: var(--border); font-size: 16px; font-style: normal; font-weight: 400; }
+.file-name { overflow: hidden; text-overflow: ellipsis; }
 .workspace-title { color: var(--text-dim); font-weight: 600; }
 .dirty-dot { color: var(--accent); margin-left: 6px; font-size: 10px; vertical-align: middle; }
 .icon-btn {
@@ -557,6 +560,7 @@ kbd {
   .ai-footer { align-items: flex-end; }
   .ai-footer > p { max-width: 140px; }
   .topbar { height: 46px; }
+  .file-parent { display: none; }
   .welcome-shell { width: min(100% - 32px, 560px); padding: 40px 0; }
   .recent-grid { grid-template-columns: 1fr; }
   .recent-heading { align-items: center; }

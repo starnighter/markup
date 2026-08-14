@@ -9,6 +9,7 @@ interface AppState {
   workspace: string | null;
   workspaceName: string;
   recentWorkspaces: string[];
+  lastOpenedFiles: Record<string, string>;
   tree: DirEntry | null;
   expanded: Record<string, boolean>;
   currentFile: string | null;
@@ -59,6 +60,7 @@ interface AppState {
 
 const LS_WORKSPACE = "markup.workspace";
 const LS_RECENT_WORKSPACES = "markup.recentWorkspaces";
+const LS_LAST_OPENED_FILES = "markup.lastOpenedFiles";
 const LS_THEME = "markup.theme";
 const LS_MODE = "markup.mode";
 const LS_SIDEBAR_W = "markup.sidebarWidth";
@@ -81,6 +83,44 @@ function readRecentWorkspaces(): string[] {
   } catch {
     return [];
   }
+}
+
+function readLastOpenedFiles(): Record<string, string> {
+  try {
+    const value = JSON.parse(storage.get(LS_LAST_OPENED_FILES) ?? "{}");
+    if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+    return Object.fromEntries(
+      Object.entries(value).filter(
+        ([workspace, file]) => typeof workspace === "string" && !!workspace.trim()
+          && typeof file === "string" && !!file.trim(),
+      ),
+    ) as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
+function treeContainsFile(entry: DirEntry, path: string): boolean {
+  if (entry.path === path) return !entry.is_dir && isMarkdown(entry.name);
+  return entry.is_dir && entry.children.some((child) => treeContainsFile(child, path));
+}
+
+function expandToFile(tree: DirEntry, path: string, current: Record<string, boolean>): Record<string, boolean> {
+  const expanded = { ...current };
+  const visit = (entry: DirEntry): boolean => {
+    if (!entry.is_dir) return entry.path === path;
+    const contains = entry.children.some(visit);
+    if (contains) expanded[entry.path] = true;
+    return contains;
+  };
+  visit(tree);
+  return expanded;
+}
+
+function isSameOrChildPath(candidate: string, root: string): boolean {
+  const normalizedCandidate = candidate.replace(/\\/g, "/").replace(/\/+$/, "");
+  const normalizedRoot = root.replace(/\\/g, "/").replace(/\/+$/, "");
+  return normalizedCandidate === normalizedRoot || normalizedCandidate.startsWith(normalizedRoot + "/");
 }
 
 /** 安全 localStorage：Node 测试环境/隐私模式下静默降级 */
@@ -113,6 +153,7 @@ export const useStore = create<AppState>((set, get) => ({
   workspace: null,
   workspaceName: "",
   recentWorkspaces: readRecentWorkspaces(),
+  lastOpenedFiles: readLastOpenedFiles(),
   tree: null,
   expanded: {},
   currentFile: null,
@@ -142,12 +183,21 @@ export const useStore = create<AppState>((set, get) => ({
     try {
       const tree = await fsApi.readDirTree(path);
       const recentWorkspaces = [path, ...get().recentWorkspaces.filter((item) => item !== path)].slice(0, 6);
+      const rememberedFile = get().lastOpenedFiles[path];
+      const canRestore = !!rememberedFile && treeContainsFile(tree, rememberedFile);
+      const lastOpenedFiles = canRestore || !rememberedFile
+        ? get().lastOpenedFiles
+        : Object.fromEntries(Object.entries(get().lastOpenedFiles).filter(([workspace]) => workspace !== path));
       storage.set(LS_WORKSPACE, path);
       storage.set(LS_RECENT_WORKSPACES, JSON.stringify(recentWorkspaces));
+      if (lastOpenedFiles !== get().lastOpenedFiles) {
+        storage.set(LS_LAST_OPENED_FILES, JSON.stringify(lastOpenedFiles));
+      }
       set({
         workspace: path,
         workspaceName: tree.name,
         recentWorkspaces,
+        lastOpenedFiles,
         tree,
         expanded: { [path]: true },
         currentFile: null,
@@ -156,6 +206,7 @@ export const useStore = create<AppState>((set, get) => ({
         dirty: false,
         sidebarOpen: !isMobile,
       });
+      if (canRestore) await get().openFile(rememberedFile);
     } catch (e) {
       get().showToast((e as Error).message);
       storage.remove(LS_WORKSPACE);
@@ -179,8 +230,12 @@ export const useStore = create<AppState>((set, get) => ({
   forgetRecentWorkspace: (path) =>
     set((state) => {
       const recentWorkspaces = state.recentWorkspaces.filter((item) => item !== path);
+      const lastOpenedFiles = Object.fromEntries(
+        Object.entries(state.lastOpenedFiles).filter(([workspace]) => workspace !== path),
+      );
       storage.set(LS_RECENT_WORKSPACES, JSON.stringify(recentWorkspaces));
-      return { recentWorkspaces };
+      storage.set(LS_LAST_OPENED_FILES, JSON.stringify(lastOpenedFiles));
+      return { recentWorkspaces, lastOpenedFiles };
     }),
 
   refreshTree: async () => {
@@ -206,8 +261,16 @@ export const useStore = create<AppState>((set, get) => ({
     await s.saveNow(); // 先落盘当前文件
     try {
       const content = await fsApi.readTextFile(path);
+      const workspace = get().workspace;
+      const tree = get().tree;
+      const lastOpenedFiles = workspace
+        ? { ...get().lastOpenedFiles, [workspace]: path }
+        : get().lastOpenedFiles;
+      if (workspace) storage.set(LS_LAST_OPENED_FILES, JSON.stringify(lastOpenedFiles));
       set({
         currentFile: path,
+        lastOpenedFiles,
+        expanded: tree ? expandToFile(tree, path, get().expanded) : get().expanded,
         content,
         savedContent: content,
         dirty: false,
@@ -307,7 +370,14 @@ export const useStore = create<AppState>((set, get) => ({
     try {
       await fsApi.renameEntry(oldPath, newPath);
       // 若重命名的是当前打开的文件，同步路径
-      if (get().currentFile === oldPath) set({ currentFile: newPath });
+      if (get().currentFile === oldPath) {
+        const workspace = get().workspace;
+        const lastOpenedFiles = workspace
+          ? { ...get().lastOpenedFiles, [workspace]: newPath }
+          : get().lastOpenedFiles;
+        if (workspace) storage.set(LS_LAST_OPENED_FILES, JSON.stringify(lastOpenedFiles));
+        set({ currentFile: newPath, lastOpenedFiles });
+      }
       await s.refreshTree();
     } catch (e) {
       s.showToast((e as Error).message);
@@ -318,6 +388,15 @@ export const useStore = create<AppState>((set, get) => ({
     const s = get();
     try {
       await fsApi.deleteEntry(path);
+      const workspace = get().workspace;
+      const rememberedFile = workspace ? get().lastOpenedFiles[workspace] : undefined;
+      if (workspace && rememberedFile && isSameOrChildPath(rememberedFile, path)) {
+        const lastOpenedFiles = Object.fromEntries(
+          Object.entries(get().lastOpenedFiles).filter(([item]) => item !== workspace),
+        );
+        storage.set(LS_LAST_OPENED_FILES, JSON.stringify(lastOpenedFiles));
+        set({ lastOpenedFiles });
+      }
       if (get().currentFile === path || get().currentFile?.startsWith(path + "/")) {
         get().closeFile();
       }

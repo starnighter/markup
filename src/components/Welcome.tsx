@@ -5,7 +5,7 @@ const pathName = (path: string) => path.replace(/[\\/]+$/, "").split(/[\\/]/).po
 const parentPath = (path: string) => path.replace(/[\\/]+$/, "").replace(/[\\/][^\\/]+$/, "");
 
 export default function Welcome() {
-  const { openWorkspace, showToast, recentWorkspaces, forgetRecentWorkspace } = useStore();
+  const { openWorkspace, showToast, recentWorkspaces, lastOpenedFiles, forgetRecentWorkspace } = useStore();
 
   const pick = async () => {
     try {
@@ -40,7 +40,11 @@ export default function Welcome() {
                     <span className="recent-icon">M</span>
                     <span className="recent-copy">
                       <b>{pathName(path)}</b>
-                      <small>{parentPath(path)}</small>
+                      <small>
+                        {lastOpenedFiles[path]
+                          ? `上次编辑 · ${pathName(lastOpenedFiles[path])}`
+                          : parentPath(path)}
+                      </small>
                     </span>
                   </button>
                   <button

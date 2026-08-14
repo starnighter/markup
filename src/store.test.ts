@@ -10,7 +10,15 @@ vi.mock("@tauri-apps/api/core", () => ({
           name: "ws",
           path: "/ws",
           is_dir: true,
-          children: [{ name: "a.md", path: "/ws/a.md", is_dir: false, children: [] }],
+          children: [
+            { name: "a.md", path: "/ws/a.md", is_dir: false, children: [] },
+            {
+              name: "notes",
+              path: "/ws/notes",
+              is_dir: true,
+              children: [{ name: "draft.md", path: "/ws/notes/draft.md", is_dir: false, children: [] }],
+            },
+          ],
         };
       case "read_text_file":
         return files.get(args.path as string) ?? "# hello";
@@ -34,6 +42,7 @@ describe("store", () => {
       workspace: null,
       workspaceName: "",
       recentWorkspaces: [],
+      lastOpenedFiles: {},
       tree: null,
       currentFile: null,
       content: "",
@@ -68,6 +77,7 @@ describe("store", () => {
     await useStore.getState().openFile("/ws/a.md");
     expect(useStore.getState().content).toBe("# hello");
     expect(useStore.getState().dirty).toBe(false);
+    expect(useStore.getState().lastOpenedFiles["/ws"]).toBe("/ws/a.md");
 
     useStore.getState().setContent("# hello\n\n改动");
     expect(useStore.getState().dirty).toBe(true);
@@ -76,6 +86,21 @@ describe("store", () => {
     const s = useStore.getState();
     expect(s.dirty).toBe(false);
     expect(files.get("/ws/a.md")).toBe("# hello\n\n改动");
+  });
+
+  it("重新打开工作区时恢复最后编辑的有效文档", async () => {
+    useStore.setState({ lastOpenedFiles: { "/ws": "/ws/notes/draft.md" } });
+    await useStore.getState().openWorkspace("/ws");
+    expect(useStore.getState().currentFile).toBe("/ws/notes/draft.md");
+    expect(useStore.getState().content).toBe("# hello");
+    expect(useStore.getState().expanded["/ws/notes"]).toBe(true);
+  });
+
+  it("最后编辑的文档已不存在时清理失效记录", async () => {
+    useStore.setState({ lastOpenedFiles: { "/ws": "/ws/missing.md" } });
+    await useStore.getState().openWorkspace("/ws");
+    expect(useStore.getState().currentFile).toBeNull();
+    expect(useStore.getState().lastOpenedFiles["/ws"]).toBeUndefined();
   });
 
   it("改回原内容时脏标记消除", async () => {
