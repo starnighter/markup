@@ -6,6 +6,7 @@ import TopBar from "./components/TopBar";
 import StatusBar from "./components/StatusBar";
 import Welcome from "./components/Welcome";
 import WorkspaceEmpty from "./components/WorkspaceEmpty";
+import QuickOpen from "./components/QuickOpen";
 import { isMobile } from "./lib/platform";
 
 export default function App() {
@@ -58,6 +59,7 @@ export default function App() {
         </div>
       </div>
       <StatusBar />
+      <QuickOpen />
       {toast && <div className="toast">{toast}</div>}
     </div>
   );

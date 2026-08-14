@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import FileTree from "./FileTree";
 import ResizeHandle from "./ResizeHandle";
 import { useStore } from "../store";
@@ -6,7 +6,6 @@ import { isMobile, primaryModifier } from "../lib/platform";
 
 export default function Sidebar() {
   const [query, setQuery] = useState("");
-  const searchRef = useRef<HTMLInputElement>(null);
   const {
     workspace,
     workspaceName,
@@ -18,18 +17,6 @@ export default function Sidebar() {
     closeWorkspace,
   } = useStore();
   const asideRef = useRef<HTMLElement>(null);
-
-  useEffect(() => {
-    const focusSearch = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "p") {
-        event.preventDefault();
-        searchRef.current?.focus();
-        searchRef.current?.select();
-      }
-    };
-    window.addEventListener("keydown", focusSearch);
-    return () => window.removeEventListener("keydown", focusSearch);
-  }, []);
 
   if (!workspace) return null;
 
@@ -50,7 +37,6 @@ export default function Sidebar() {
       <label className="sidebar-search">
         <span aria-hidden="true">⌕</span>
         <input
-          ref={searchRef}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="搜索文档"
@@ -59,7 +45,18 @@ export default function Sidebar() {
         {query ? (
           <button type="button" aria-label="清除搜索" title="清除搜索" onClick={() => setQuery("")}>×</button>
         ) : (
-          <kbd>{primaryModifier} P</kbd>
+          <button
+            type="button"
+            className="sidebar-search-shortcut"
+            title="快速打开文档"
+            aria-label="快速打开文档"
+            onClick={(event) => {
+              event.preventDefault();
+              window.dispatchEvent(new Event("markup:quick-open"));
+            }}
+          >
+            <kbd>{primaryModifier} P</kbd>
+          </button>
         )}
       </label>
       <div className="sidebar-actions">
