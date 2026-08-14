@@ -1,0 +1,33 @@
+src/App.tsx
+  s_9212d3017e1c0f::t_c03c14510471bf 8,53
+src/components/FileTree.tsx
+  s_9212d3017e1c0f::t_2b4a61da4ecbb8 4,81,87,100,121,179,286,294-297,307-309,311-316
+src/components/TopBar.tsx
+  s_9212d3017e1c0f::t_0cf3bf7b28b2bb 13,28-30
+src/lib/fileSearch.test.ts
+  s_9212d3017e1c0f::t_b67d37f6f726b2 1-37
+src/lib/fileSearch.ts
+  s_9212d3017e1c0f::t_8e677995d1390d 1-16
+src/store.test.ts
+  s_9212d3017e1c0f::t_9e01bd00ffd625 35-36,56-65
+src/store.ts
+  s_9212d3017e1c0f::t_ca82fb8a840250 11,39,61,76-85,115,144,146,150,179-185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9aca117d4fc9451f7c34b84c32435f22d5f2e7e9",
+  "prompts": {},
+  "sessions": {
+    "s_9212d3017e1c0f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ffeec-39b8-7e22-8492-ec9175e42350",
+        "model": "unknown"
+      },
+      "human_author": "starnighter <175115251+starnighter@users.noreply.github.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
