@@ -1,0 +1,23 @@
+src/components/Welcome.tsx
+  s_9212d3017e1c0f::t_ae0970f31fe08c 22-27,33
+src/styles.css
+  s_9212d3017e1c0f::t_9202cce4d596f1 316,340-353,362-367,370,555
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "928e16a92af918a40dbebe4ae604102091dfb149",
+  "prompts": {},
+  "sessions": {
+    "s_9212d3017e1c0f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ffeec-39b8-7e22-8492-ec9175e42350",
+        "model": "unknown"
+      },
+      "human_author": "starnighter <175115251+starnighter@users.noreply.github.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
