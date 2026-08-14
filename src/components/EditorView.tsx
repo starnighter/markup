@@ -7,6 +7,7 @@ import { VDITOR_CDN } from "../lib/platform";
 import ResizeHandle from "./ResizeHandle";
 import TableToolbar from "./TableToolbar";
 import DocumentOutline from "./DocumentOutline";
+import AIAssistant from "./AIAssistant";
 
 /** "/" 快捷格式菜单（Typora 式）：value 为插入的 Markdown */
 const SLASH_ITEMS: { label: string; keys: string; value: string }[] = [
@@ -266,6 +267,7 @@ export default function EditorView() {
     <div className="editor-wrap" ref={wrapRef}>
       <div className="editor-host" ref={containerRef} />
       {mode === "ir" && <TableToolbar hostRef={containerRef} />}
+      <AIAssistant editorRef={containerRef} vditorRef={vditorRef} />
       {mode === "ir" && rightPanelVisible && <DocumentOutline editorRef={containerRef} />}
       {mode === "sv" && rightPanelVisible && (
         <ResizeHandle

@@ -31,6 +31,17 @@ export default function TopBar() {
       </div>
       <div className="topbar-right">
         {currentFile && (
+          <button
+            className="icon-btn ai-open-btn"
+            title="AI 服务配置"
+            aria-label="AI 服务配置"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => window.dispatchEvent(new Event("markup:open-ai"))}
+          >
+            ✦
+          </button>
+        )}
+        {currentFile && (
           <div className="mode-switch" role="tablist">
             <button
               className={mode === "ir" ? "active" : ""}
