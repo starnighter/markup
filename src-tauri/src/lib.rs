@@ -1,6 +1,8 @@
 mod fs_cmds;
+mod ai_cmds;
 
 use fs_cmds::*;
+use ai_cmds::*;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -15,6 +17,7 @@ pub fn run() {
             delete_entry,
             path_exists,
             write_binary_file,
+            ai_complete,
         ])
         .run(tauri::generate_context!())
         .expect("error while running MarkUp application");

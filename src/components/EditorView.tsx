@@ -7,6 +7,7 @@ import { VDITOR_CDN } from "../lib/platform";
 import ResizeHandle from "./ResizeHandle";
 import TableToolbar from "./TableToolbar";
 import DocumentOutline from "./DocumentOutline";
+import AIAssistant from "./AIAssistant";
 
 /** "/" 快捷格式菜单（Typora 式）：value 为插入的 Markdown */
 const SLASH_ITEMS: { label: string; keys: string; value: string }[] = [
@@ -182,15 +183,18 @@ export default function EditorView() {
         handler: handleUpload,
       },
       input: (value: string) => {
+        if (useStore.getState().currentFile !== currentFile) return;
         useStore.getState().setContent(value);
         scheduleSave();
       },
       after: () => {
-        vditorRef.current?.setValue(initial);
-        if (initial) vditorRef.current?.focus();
+        if (disposed || useStore.getState().currentFile !== currentFile) return;
+        vd?.setValue(initial);
+        if (initial) vd?.focus();
         applySvLayout();
       },
       blur: () => {
+        if (useStore.getState().currentFile !== currentFile) return;
         window.clearTimeout(saveTimer.current);
         useStore.getState().saveNow();
       },
@@ -217,7 +221,9 @@ export default function EditorView() {
       if (vd) {
         try {
           const v = vd.getValue();
-          if (v !== useStore.getState().content) useStore.getState().setContent(v);
+          const store = useStore.getState();
+          // 文件切换时 store 已载入新正文，不能再用旧实例的内容覆盖它。
+          if (store.currentFile === currentFile && v !== store.content) store.setContent(v);
           vd.destroy();
         } catch {
           /* 编辑器未初始化完成时 destroy 可能抛错 */
@@ -266,6 +272,7 @@ export default function EditorView() {
     <div className="editor-wrap" ref={wrapRef}>
       <div className="editor-host" ref={containerRef} />
       {mode === "ir" && <TableToolbar hostRef={containerRef} />}
+      <AIAssistant editorRef={containerRef} vditorRef={vditorRef} />
       {mode === "ir" && rightPanelVisible && <DocumentOutline editorRef={containerRef} />}
       {mode === "sv" && rightPanelVisible && (
         <ResizeHandle

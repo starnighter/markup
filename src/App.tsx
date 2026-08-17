@@ -5,10 +5,12 @@ import EditorView from "./components/EditorView";
 import TopBar from "./components/TopBar";
 import StatusBar from "./components/StatusBar";
 import Welcome from "./components/Welcome";
+import WorkspaceEmpty from "./components/WorkspaceEmpty";
+import QuickOpen from "./components/QuickOpen";
 import { isMobile } from "./lib/platform";
 
 export default function App() {
-  const { workspace, currentFile, sidebarOpen, toggleSidebar, theme, toast, init } = useStore();
+  const { workspace, currentFile, sidebarOpen, toggleSidebar, focusMode, toggleFocusMode, theme, toast, init } = useStore();
 
   // 启动：恢复上次工作区
   useEffect(() => {
@@ -21,23 +23,37 @@ export default function App() {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
 
-  // 全局保存快捷键 Cmd/Ctrl + S
+  // 全局保存与文档导航快捷键
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+      if (e.key === "Escape" && useStore.getState().focusMode) {
+        // 快速打开、AI 设置等模态框优先消费 Esc，不连带退出专注模式。
+        const fromModal = e.composedPath().some(
+          (target) => target instanceof HTMLElement && target.getAttribute("aria-modal") === "true",
+        );
+        if (fromModal) return;
         e.preventDefault();
-        useStore.getState().saveNow();
+        useStore.getState().toggleFocusMode();
+        return;
       }
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const key = e.key.toLowerCase();
+      if (key === "s") useStore.getState().saveNow();
+      else if (key === "[") useStore.getState().navigateBack();
+      else if (key === "]") useStore.getState().navigateForward();
+      else if (key === "enter" && e.shiftKey && useStore.getState().currentFile) useStore.getState().toggleFocusMode();
+      else return;
+      e.preventDefault();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   return (
-    <div className="app">
+    <div className={`app ${focusMode ? "focus-mode" : ""}`}>
       <TopBar />
       <div className="main">
-        {workspace && sidebarOpen && (
+        {workspace && sidebarOpen && !focusMode && (
           <>
             <Sidebar />
             {isMobile && <div className="sidebar-mask" onClick={toggleSidebar} />}
@@ -49,13 +65,20 @@ export default function App() {
           ) : currentFile ? (
             <EditorView />
           ) : (
-            <div className="no-file">
-              <p>从左侧选择或新建一个 Markdown 文件</p>
-            </div>
+            <WorkspaceEmpty />
           )}
         </div>
       </div>
       <StatusBar />
+      <QuickOpen />
+      {focusMode && currentFile && (
+        <div className="focus-hud" aria-label="专注模式">
+          <span title={currentFile}>{currentFile.replace(/^[\\/]+/, "").split(/[\\/]/).pop()}</span>
+          <button type="button" onClick={toggleFocusMode} aria-label="退出专注模式">
+            退出专注 <kbd>Esc</kbd>
+          </button>
+        </div>
+      )}
       {toast && <div className="toast">{toast}</div>}
     </div>
   );

@@ -8,9 +8,13 @@ export type Theme = "light" | "dark";
 interface AppState {
   workspace: string | null;
   workspaceName: string;
+  recentWorkspaces: string[];
+  lastOpenedFiles: Record<string, string>;
   tree: DirEntry | null;
   expanded: Record<string, boolean>;
   currentFile: string | null;
+  navigationHistory: string[];
+  navigationIndex: number;
   /** 编辑器当前内容（保存的唯一事实来源） */
   content: string;
   savedContent: string;
@@ -20,6 +24,7 @@ interface AppState {
   mode: EditorMode;
   theme: Theme;
   sidebarOpen: boolean;
+  focusMode: boolean;
   /** 侧栏宽度（px），可拖拽调整 */
   sidebarWidth: number;
   /** 源码模式下预览窗格宽度占比 0~1 */
@@ -34,16 +39,20 @@ interface AppState {
 
   showToast: (msg: string) => void;
   openWorkspace: (path: string) => Promise<void>;
-  closeWorkspace: () => void;
+  closeWorkspace: () => Promise<void>;
+  forgetRecentWorkspace: (path: string) => void;
   refreshTree: () => Promise<void>;
   toggleExpanded: (path: string) => void;
-  openFile: (path: string) => Promise<void>;
+  openFile: (path: string, recordHistory?: boolean) => Promise<boolean>;
+  navigateBack: () => Promise<void>;
+  navigateForward: () => Promise<void>;
   closeFile: () => void;
   setContent: (c: string) => void;
-  saveNow: () => Promise<void>;
+  saveNow: () => Promise<boolean>;
   setMode: (m: EditorMode) => void;
   toggleTheme: () => void;
   toggleSidebar: () => void;
+  toggleFocusMode: () => void;
   setSidebarWidth: (w: number) => void;
   setSvRatio: (r: number) => void;
   toggleRightPanel: () => void;
@@ -56,6 +65,8 @@ interface AppState {
 }
 
 const LS_WORKSPACE = "markup.workspace";
+const LS_RECENT_WORKSPACES = "markup.recentWorkspaces";
+const LS_LAST_OPENED_FILES = "markup.lastOpenedFiles";
 const LS_THEME = "markup.theme";
 const LS_MODE = "markup.mode";
 const LS_SIDEBAR_W = "markup.sidebarWidth";
@@ -69,6 +80,65 @@ const SV_MIN = 0.15;
 const SV_MAX = 0.85;
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+function readRecentWorkspaces(): string[] {
+  try {
+    const value = JSON.parse(storage.get(LS_RECENT_WORKSPACES) ?? "[]");
+    if (!Array.isArray(value)) return [];
+    return value.filter((path): path is string => typeof path === "string" && !!path.trim()).slice(0, 6);
+  } catch {
+    return [];
+  }
+}
+
+function readLastOpenedFiles(): Record<string, string> {
+  try {
+    const value = JSON.parse(storage.get(LS_LAST_OPENED_FILES) ?? "{}");
+    if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+    return Object.fromEntries(
+      Object.entries(value).filter(
+        ([workspace, file]) => typeof workspace === "string" && !!workspace.trim()
+          && typeof file === "string" && !!file.trim(),
+      ),
+    ) as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
+function treeContainsFile(entry: DirEntry, path: string): boolean {
+  if (entry.path === path) return !entry.is_dir && isMarkdown(entry.name);
+  return entry.is_dir && entry.children.some((child) => treeContainsFile(child, path));
+}
+
+function expandToFile(tree: DirEntry, path: string, current: Record<string, boolean>): Record<string, boolean> {
+  const expanded = { ...current };
+  const visit = (entry: DirEntry): boolean => {
+    if (!entry.is_dir) return entry.path === path;
+    const contains = entry.children.some(visit);
+    if (contains) expanded[entry.path] = true;
+    return contains;
+  };
+  visit(tree);
+  return expanded;
+}
+
+function isSameOrChildPath(candidate: string, root: string): boolean {
+  const normalizedCandidate = candidate.replace(/\\/g, "/").replace(/\/+$/, "");
+  const normalizedRoot = root.replace(/\\/g, "/").replace(/\/+$/, "");
+  return normalizedCandidate === normalizedRoot || normalizedCandidate.startsWith(normalizedRoot + "/");
+}
+
+function replacePathRoot(candidate: string, oldRoot: string, newRoot: string): string {
+  if (!isSameOrChildPath(candidate, oldRoot)) return candidate;
+  return newRoot + candidate.slice(oldRoot.length);
+}
+
+function appendNavigation(history: string[], index: number, path: string) {
+  if (history[index] === path) return { navigationHistory: history, navigationIndex: index };
+  const navigationHistory = [...history.slice(0, index + 1), path].slice(-50);
+  return { navigationHistory, navigationIndex: navigationHistory.length - 1 };
+}
 
 /** 安全 localStorage：Node 测试环境/隐私模式下静默降级 */
 const storage = {
@@ -95,13 +165,19 @@ const storage = {
 };
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
+let saveInFlight: Promise<boolean> | null = null;
+let openRequestId = 0;
 
 export const useStore = create<AppState>((set, get) => ({
   workspace: null,
   workspaceName: "",
+  recentWorkspaces: readRecentWorkspaces(),
+  lastOpenedFiles: readLastOpenedFiles(),
   tree: null,
   expanded: {},
   currentFile: null,
+  navigationHistory: [],
+  navigationIndex: -1,
   content: "",
   savedContent: "",
   dirty: false,
@@ -110,6 +186,7 @@ export const useStore = create<AppState>((set, get) => ({
   mode: (storage.get(LS_MODE) as EditorMode) || (isMobile ? "sv" : "ir"),
   theme: (storage.get(LS_THEME) as Theme) || "light",
   sidebarOpen: !isMobile,
+  focusMode: false,
   sidebarWidth: clamp(Number(storage.get(LS_SIDEBAR_W)) || 264, SIDEBAR_MIN, SIDEBAR_MAX),
   svRatio: clamp(Number(storage.get(LS_SV_RATIO)) || 0.5, SV_MIN, SV_MAX),
   // 兼容旧版本的源码预览开关偏好。
@@ -125,27 +202,50 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   openWorkspace: async (path) => {
+    if (get().workspace && !(await get().saveNow())) return;
+    const requestId = ++openRequestId;
     try {
       const tree = await fsApi.readDirTree(path);
+      if (requestId !== openRequestId) return;
+      const recentWorkspaces = [path, ...get().recentWorkspaces.filter((item) => item !== path)].slice(0, 6);
+      const rememberedFile = get().lastOpenedFiles[path];
+      const canRestore = !!rememberedFile && treeContainsFile(tree, rememberedFile);
+      const lastOpenedFiles = canRestore || !rememberedFile
+        ? get().lastOpenedFiles
+        : Object.fromEntries(Object.entries(get().lastOpenedFiles).filter(([workspace]) => workspace !== path));
       storage.set(LS_WORKSPACE, path);
+      storage.set(LS_RECENT_WORKSPACES, JSON.stringify(recentWorkspaces));
+      if (lastOpenedFiles !== get().lastOpenedFiles) {
+        storage.set(LS_LAST_OPENED_FILES, JSON.stringify(lastOpenedFiles));
+      }
       set({
         workspace: path,
         workspaceName: tree.name,
+        recentWorkspaces,
+        lastOpenedFiles,
         tree,
         expanded: { [path]: true },
         currentFile: null,
+        navigationHistory: [],
+        navigationIndex: -1,
         content: "",
         savedContent: "",
         dirty: false,
         sidebarOpen: !isMobile,
+        focusMode: false,
       });
+      if (canRestore) await get().openFile(rememberedFile);
     } catch (e) {
-      get().showToast((e as Error).message);
-      storage.remove(LS_WORKSPACE);
+      if (requestId === openRequestId) {
+        get().showToast((e as Error).message);
+        storage.remove(LS_WORKSPACE);
+      }
     }
   },
 
-  closeWorkspace: () => {
+  closeWorkspace: async () => {
+    if (!(await get().saveNow())) return;
+    openRequestId++;
     storage.remove(LS_WORKSPACE);
     set({
       workspace: null,
@@ -153,11 +253,25 @@ export const useStore = create<AppState>((set, get) => ({
       tree: null,
       expanded: {},
       currentFile: null,
+      navigationHistory: [],
+      navigationIndex: -1,
       content: "",
       savedContent: "",
       dirty: false,
+      focusMode: false,
     });
   },
+
+  forgetRecentWorkspace: (path) =>
+    set((state) => {
+      const recentWorkspaces = state.recentWorkspaces.filter((item) => item !== path);
+      const lastOpenedFiles = Object.fromEntries(
+        Object.entries(state.lastOpenedFiles).filter(([workspace]) => workspace !== path),
+      );
+      storage.set(LS_RECENT_WORKSPACES, JSON.stringify(recentWorkspaces));
+      storage.set(LS_LAST_OPENED_FILES, JSON.stringify(lastOpenedFiles));
+      return { recentWorkspaces, lastOpenedFiles };
+    }),
 
   refreshTree: async () => {
     const { workspace, showToast } = get();
@@ -173,51 +287,113 @@ export const useStore = create<AppState>((set, get) => ({
   toggleExpanded: (path) =>
     set((s) => ({ expanded: { ...s.expanded, [path]: !s.expanded[path] } })),
 
-  openFile: async (path) => {
+  openFile: async (path, recordHistory = true) => {
     const s = get();
     if (s.currentFile === path) {
       if (isMobile) set({ sidebarOpen: false });
-      return;
+      return true;
     }
-    await s.saveNow(); // 先落盘当前文件
+    const requestId = ++openRequestId;
+    if (!(await s.saveNow()) || requestId !== openRequestId) return false;
     try {
       const content = await fsApi.readTextFile(path);
+      if (requestId !== openRequestId) return false;
+      const workspace = get().workspace;
+      const tree = get().tree;
+      const lastOpenedFiles = workspace
+        ? { ...get().lastOpenedFiles, [workspace]: path }
+        : get().lastOpenedFiles;
+      const navigation = recordHistory
+        ? appendNavigation(get().navigationHistory, get().navigationIndex, path)
+        : {};
+      if (workspace) storage.set(LS_LAST_OPENED_FILES, JSON.stringify(lastOpenedFiles));
       set({
         currentFile: path,
+        lastOpenedFiles,
+        ...navigation,
+        expanded: tree ? expandToFile(tree, path, get().expanded) : get().expanded,
         content,
         savedContent: content,
         dirty: false,
         saveError: false,
         sidebarOpen: isMobile ? false : s.sidebarOpen,
       });
+      return true;
     } catch (e) {
-      s.showToast((e as Error).message);
+      if (requestId === openRequestId) s.showToast((e as Error).message);
+      return false;
     }
   },
 
+  navigateBack: async () => {
+    const { navigationHistory, navigationIndex } = get();
+    const targetIndex = navigationIndex - 1;
+    const target = navigationHistory[targetIndex];
+    if (!target) return;
+    if (await get().openFile(target, false)) set({ navigationIndex: targetIndex });
+  },
+
+  navigateForward: async () => {
+    const { navigationHistory, navigationIndex } = get();
+    const targetIndex = navigationIndex + 1;
+    const target = navigationHistory[targetIndex];
+    if (!target) return;
+    if (await get().openFile(target, false)) set({ navigationIndex: targetIndex });
+  },
+
   closeFile: () => {
-    set({ currentFile: null, content: "", savedContent: "", dirty: false });
+    openRequestId++;
+    set({ currentFile: null, content: "", savedContent: "", dirty: false, focusMode: false });
   },
 
   setContent: (content) =>
     set((s) => ({ content, dirty: content !== s.savedContent })),
 
   saveNow: async () => {
-    const s = get();
-    if (!s.currentFile || !s.dirty || s.saving) return;
-    set({ saving: true, saveError: false });
+    if (saveInFlight) return saveInFlight;
+    saveInFlight = (async () => {
+      while (true) {
+        const snapshot = get();
+        if (!snapshot.currentFile || !snapshot.dirty) {
+          set({ saving: false });
+          return true;
+        }
+        const file = snapshot.currentFile;
+        const content = snapshot.content;
+        set({ saving: true, saveError: false });
+        try {
+          await fsApi.writeTextFile(file, content);
+        } catch (e) {
+          set({ saving: false, saveError: true });
+          snapshot.showToast("保存失败：" + (e as Error).message);
+          return false;
+        }
+        const latest = get();
+        if (latest.currentFile !== file) {
+          set({ saving: false });
+          return true;
+        }
+        const dirty = latest.content !== content;
+        set({ savedContent: content, dirty, saving: dirty });
+        if (!dirty) return true;
+      }
+    })();
     try {
-      await fsApi.writeTextFile(s.currentFile, s.content);
-      set({ saving: false, dirty: false, savedContent: get().content });
-    } catch (e) {
-      set({ saving: false, saveError: true });
-      s.showToast("保存失败：" + (e as Error).message);
+      return await saveInFlight;
+    } finally {
+      saveInFlight = null;
     }
   },
 
   setMode: (mode) => {
     storage.set(LS_MODE, mode);
-    set({ mode });
+    set((state) => {
+      if (state.mode === mode) return { mode };
+      // 两种模式的右栏含义不同：源码为实时预览，IR 为文档大纲。
+      // 切换时不应把上一模式的“打开”状态带到下一模式。
+      storage.set(LS_RIGHT_PANEL, "0");
+      return { mode, rightPanelVisible: false };
+    });
   },
 
   toggleTheme: () =>
@@ -228,6 +404,8 @@ export const useStore = create<AppState>((set, get) => ({
     }),
 
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
+
+  toggleFocusMode: () => set((s) => ({ focusMode: !s.focusMode })),
 
   setSidebarWidth: (w) => {
     const sidebarWidth = clamp(Math.round(w), SIDEBAR_MIN, SIDEBAR_MAX);
@@ -275,9 +453,22 @@ export const useStore = create<AppState>((set, get) => ({
     const newPath = joinPath(parent, finalName);
     if (newPath === oldPath) return;
     try {
+      if (get().currentFile && isSameOrChildPath(get().currentFile!, oldPath) && !(await s.saveNow())) return;
       await fsApi.renameEntry(oldPath, newPath);
-      // 若重命名的是当前打开的文件，同步路径
-      if (get().currentFile === oldPath) set({ currentFile: newPath });
+      const currentFile = get().currentFile
+        ? replacePathRoot(get().currentFile!, oldPath, newPath)
+        : null;
+      const navigationHistory = get().navigationHistory.map((path) => replacePathRoot(path, oldPath, newPath));
+      if (currentFile !== get().currentFile) {
+        const workspace = get().workspace;
+        const lastOpenedFiles = workspace
+          ? { ...get().lastOpenedFiles, [workspace]: currentFile! }
+          : get().lastOpenedFiles;
+        if (workspace) storage.set(LS_LAST_OPENED_FILES, JSON.stringify(lastOpenedFiles));
+        set({ currentFile, lastOpenedFiles, navigationHistory });
+      } else {
+        set({ navigationHistory });
+      }
       await s.refreshTree();
     } catch (e) {
       s.showToast((e as Error).message);
@@ -288,7 +479,22 @@ export const useStore = create<AppState>((set, get) => ({
     const s = get();
     try {
       await fsApi.deleteEntry(path);
-      if (get().currentFile === path || get().currentFile?.startsWith(path + "/")) {
+      const workspace = get().workspace;
+      const rememberedFile = workspace ? get().lastOpenedFiles[workspace] : undefined;
+      if (workspace && rememberedFile && isSameOrChildPath(rememberedFile, path)) {
+        const lastOpenedFiles = Object.fromEntries(
+          Object.entries(get().lastOpenedFiles).filter(([item]) => item !== workspace),
+        );
+        storage.set(LS_LAST_OPENED_FILES, JSON.stringify(lastOpenedFiles));
+        set({ lastOpenedFiles });
+      }
+      const navigationHistory = get().navigationHistory.filter((item) => !isSameOrChildPath(item, path));
+      const activeIndex = get().currentFile ? navigationHistory.lastIndexOf(get().currentFile!) : -1;
+      const navigationIndex = activeIndex >= 0
+        ? activeIndex
+        : Math.min(get().navigationIndex, navigationHistory.length - 1);
+      set({ navigationHistory, navigationIndex });
+      if (get().currentFile && isSameOrChildPath(get().currentFile!, path)) {
         get().closeFile();
       }
       await s.refreshTree();
